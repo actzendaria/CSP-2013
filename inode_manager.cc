@@ -63,7 +63,7 @@ block_manager::alloc_block()
   }
 
   if (valid_blockid == 0)
-      printf("im: block use up\n");
+      printf("\tim: alloc() block use up!\n");
 
   return valid_blockid;
 }
@@ -79,7 +79,7 @@ block_manager::free_block(uint32_t id)
 
   blockid_t start = (IBLOCK(INODE_NUM, sb.nblocks) + 1), end = (sb.nblocks - 1);//start block, end block
   if (id < start || id > end) {
-    printf("im: free() out of range!\n");
+    printf("\tim: free() out of range!\n");
     return;
   }
 
@@ -87,7 +87,7 @@ block_manager::free_block(uint32_t id)
   read_block(BBLOCK(id), block_buf);
 
   if (! (testn(BYTE_SIZE - 1 - (id%BPB)%BYTE_SIZE, (unsigned char&)block_buf[(id%BPB)/BYTE_SIZE])) ) {
-    printf("im: free() unable to free id!");
+    printf("\tim: free() unable to free id!");
     return;
   }
 
@@ -175,7 +175,7 @@ inode_manager::alloc_inode(uint32_t type)
   time_t tm;
  
   if (type == 0) {
-    printf("im: alloc inode type %d\n", type);
+    printf("\tim: alloc inode type %d\n", type);
     return 0;
   }
 
@@ -382,14 +382,14 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
 
   ino = get_inode(inum);
   if (!ino){
-    // printf("im: cannot get inode!\n");
+    // printf("\tim: cannot get inode!\n");
     return;
   }
   bold = ((ino->size) + BLOCK_SIZE - 1) / BLOCK_SIZE;
   bnew = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
   if (bnew > MAXFILE){
-    //printf("im: cannot support big file!\n");
+    //printf("\tim: cannot support big file!\n");
     free(ino);   
     return;
   }

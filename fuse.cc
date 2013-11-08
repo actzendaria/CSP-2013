@@ -46,7 +46,6 @@ getattr(yfs_client::inum inum, struct stat &st)
 
     st.st_ino = inum;
     printf("getattr %016llx %d\n", inum, yfs->isfile(inum));
-    printf("zzz: getattr %lld isfile?:%d\n", inum, yfs->isfile(inum));
     if(yfs->isfile(inum)){
         yfs_client::fileinfo info;
         ret = yfs->getfile(inum, info);
@@ -152,7 +151,7 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
         // Note: fill st using getattr before fuse_reply_attr
         fuse_reply_attr(req, &st, 0);
 #else
-    fuse_reply_err(req, ENOSYS);
+        fuse_reply_err(req, ENOSYS);
 #endif
 
     } else {
@@ -191,15 +190,7 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
         fuse_reply_err(req, ENOENT);
         return;
     }
-    printf("zzz fuse_read(ino=%lld;sz=%zu;off=%lld): buf= sz(%zu)\n", inum, size, off, buf.size());
-    if (off > 30000 || size > 3000)
-        printf(" buf:\n%s\n", (buf).c_str());
 
-    //printf(" buf start: %s\n", (buf.substr(0,20)).c_str());
-    //printf(" buf end: %s\n", (buf.substr(buf.size() - 20,20)).c_str());
-    //printf(" buf start: %s\n", (buf.substr(0,20)).c_str());
-    //printf(" buf end: %s\n", (buf.substr(buf.size() - 20,20)).c_str());
-    //printf("zzz fuse_read(ino=%lld;sz=%zu;off=%lld): buf= sz(%zu)\n%s\n", inum, size, off, buf.size(), buf.c_str());
 #if 1
     //std::string buf;
     // Change the above "#if 0" to "#if 1", and your code goes here
@@ -241,10 +232,6 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
     yfs_client::inum inum = ino; // req->in.h.nodeid;
     yfs_client::status ret;
 
-    printf("zzz fuse_write(ino=%llu;sz=%zu;off=%llu): buf_sz=%u \n", inum, size, off, strlen(buf));
-    std::string sbuf(buf);
-    //printf(" buf start: %s\n", (sbuf.substr(0,20)).c_str());
-    //printf(" buf end: %s\n", (sbuf.substr(sbuf.size() - 20,20)).c_str());
     ret = yfs->write(inum, size, off, buf, bytes_written);
     if (ret != yfs_client::OK) {
         fuse_reply_err(req, ENOENT);
@@ -252,7 +239,6 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
     }
 
     size = bytes_written;
-    printf("zzz fuse_after_write(ino=%llu;written=%zu;off=%llu)\n", inum, bytes_written, off);
 #if 1
     // Change the above line to "#if 1", and your code goes here
     fuse_reply_write(req, size);
@@ -299,12 +285,11 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
     
     if(ret != yfs_client::OK){
         // return EXIST if @name exist here
-        //return yfs_client::EXIST;
-        if (ret == yfs_client::EXIST)
-           printf("createhelper(): yfs_client::EXIST!");
+        // if (ret == yfs_client::EXIST)
+        //   printf("createhelper(): yfs_client::EXIST!");
+        // return yfs_client::EXIST;
         return ret;
     }
-
     e->ino = ino;
 
     ret = getattr(ino, e->attr);
@@ -379,7 +364,6 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
         return;
     }
 
-    printf("zzz: fuse: lookup(parent:%lu, name=%s): found? %d; ino=%llu\n", parent, name, found, ino);
     if (!found) {
         fuse_reply_err(req, ENOENT);
         return;
@@ -468,17 +452,13 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
     ret = yfs->readdir(inum, list);
     if(ret != yfs_client::OK) {
-        //fuse_reply_err(req, ?);
         fuse_reply_err(req, ENOENT);
         //fuse_reply_err(req, ENOTDIR);
         return;
     }
 
     for(it = list.begin(); it != list.end(); ++it)
-    {
         dirbuf_add(&b, (*it).name.c_str(), (fuse_ino_t)(*it).inum);
-        //dirbuf_add(&b, const char *name, fuse_ino_t ino)
-    }
 
     reply_buf_limited(req, b.p, b.size, off, size);
     free(b.p);
