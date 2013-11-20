@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <stdio.h>
+#include <unistd.h> //to solve compiling error: rpc/rpc.cc:98:39: error: ‘getpid’ was not declared in this scope
 
 #include "thr_pool.h"
 #include "marshall.h"
