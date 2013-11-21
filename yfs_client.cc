@@ -296,13 +296,15 @@ yfs_client::read(inum ino, size_t size, off_t off, std::string &data)
     if ((ec->get(ino, buf)) != extent_protocol::OK)
         return IOERR;
 
+    /*
     if (off >= buf.size())
         data = "";
     else if (off + size >= buf.size())
         data = buf.substr(off);
     else
         data = buf.substr(off, size);
-
+    */
+    data = buf.substr(off, size);
     return r;
 }
 
@@ -314,9 +316,12 @@ yfs_client::write(inum ino, size_t size, off_t off, const char *data,
     std::string buf_disk;
 
     if (!data) {
+        printf("!! yfs_client: write(): data is NULL!\n");
         return IOERR;
     }
-    std::string strdata(data);
+    std::string strdata(data, size);
+
+    printf("zzz: yfs:write: ino(%llu), sz(%u), data=(%s)\n", ino, size, data);
 
     /*
      * your lab2 code goes here.
