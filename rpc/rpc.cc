@@ -437,6 +437,8 @@ rpcs::~rpcs()
 	delete listener_;
 	delete dispatchpool_;
 	free_reply_window();
+	free_xid_trace();
+        
 }
 
 bool
@@ -556,6 +558,7 @@ rpcs::dispatch(djob_t *j)
 			// if we don't know about this clt_nonce, create a cleanup object
 			if(reply_window_.find(h.clt_nonce) == reply_window_.end()){
 				VERIFY (reply_window_[h.clt_nonce].size() == 0); // create
+				xid_trace_[h.clt_nonce] = 0; // create corresponding xid trace
 				jsl_log(JSL_DBG_2,
 						"rpcs::dispatch: new client %u xid %d chan %d, total clients %d\n", 
 						h.clt_nonce, h.xid, c->channo(), (int)reply_window_.size());
@@ -660,10 +663,121 @@ rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
                                 unsigned int xid_rep, char **b, int *sz)
 {
-    ScopedLock rwl(&reply_window_m_);
+    std::map<unsigned int,std::list<reply_t> >::iterator clt;
+    std::map<unsigned int, unsigned int>::iterator xlt;
+    std::list<reply_t>::iterator it;
+    unsigned int xid_min;
+    static unsigned int zzzcount = 0;
+    //rpcstate_t ret = NEW;
+    rpcstate_t ret;
 
+    ScopedLock rwl(&reply_window_m_);
     // Your lab3 code goes here
-    return NEW;
+
+    xlt = xid_trace_.find(clt_nonce);
+    if (xlt != xid_trace_.end()) {
+    }
+    else {
+        printf("zzz dup&update: can this ever happen?\n");
+    }
+
+    ++zzzcount;
+    printf("zzz dup&update(%u): clt(%u) xid(%u) xid_rep(%u) his(%u)\n",
+            zzzcount, clt_nonce, xid, xid_rep, xlt->second);
+
+    if ((xlt->second) < xid_rep)
+        xlt->second = xid_rep;
+    xid_min = xlt->second;
+
+    clt = reply_window_.find(clt_nonce);
+    if (clt != reply_window_.end()) {
+    }
+    else {
+        // create a new std::list<reply_t> for the new clt
+        printf("zzz dup&update: can this ever happen?\n");
+        /*std::list<reply_t> newl;
+        newl.push_back(newr);
+        reply_window_.insert(std::pair<unsigned int,
+                   std::list<reply_t> >(clt_nonce, newl));
+        */
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        //if (it == clt->second.begin()) {
+        //    xid_min = (*it).xid;
+        //    continue;
+        //}
+            
+        if (xid_min > (*it).xid) {
+            printf("zzz: dup&update(%u): xid_min(%u) > exist_xid(%u)\n",
+                   zzzcount, xid_min, (*it).xid);
+            xid_min = (*it).xid;
+        }
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid == (*it).xid) { // found xid
+            if ((*it).cb_present == false) {
+                ret = INPROGRESS;
+                break;
+            }
+            else { // cb_present == true
+                ret = DONE;
+                *sz = (*it).sz;
+                *b = (*it).buf;
+                break;
+            }
+        }
+    }
+
+    if (it == clt->second.end()) {
+        // xid not found
+        //if ((clt->second.size() > 0) && (xid < xid_min)) { // might once seen xid? check if xid_min is really inited
+        if ((xid < xid_min)) { // might once seen xid?
+            printf("zzz: dup&update(%u): FORGOTTEN xid(%u)/min(%u)/rep(%u)\n",
+                    zzzcount, xid, xid_min, xid_rep);
+            ret = FORGOTTEN;
+        }
+        else { // create it & push it into list
+            reply_t newr(xid);
+            newr.cb_present = false;
+
+            // don't have buf/sz now
+            //newr.buf = (char*)malloc(sizeof(char)*sz);
+            //newr.sz = sz;
+            //memcpy(newr.buf, b, sz);
+
+            (clt->second).push_back(newr);
+            ret = NEW;
+        }
+    }
+
+    // update window
+    // if (xid_min <= xid_rep) { // xid_min is the minium exist reply_t in list, xid_rep is the maxium replyed ACKed
+        for (it = clt->second.begin(); it != clt->second.end(); ) {
+            if ((*it).xid <= xid_rep) { // xid reply from clt, free it
+                printf("zzz dup&update(%u): clt(%u) freeing(%u) rep(%u)\n",
+                       zzzcount, clt_nonce, (*it).xid, xid_rep);
+                free((*it).buf);
+                it = (clt->second).erase(it);
+            }
+            else
+                ++it;
+        }
+    //}
+
+    printf("zzz dup&update(%u) clt(%u):", zzzcount, clt_nonce);
+    if (ret == NEW)
+        printf(" NEW\n");
+    else if (ret == INPROGRESS)
+        printf(" INPROGRESS\n");
+    else if (ret == DONE)
+        printf(" DONE\n");
+    else if (ret == FORGOTTEN)
+        printf(" FORGOTTEN\n");
+    else
+        printf(" ???\n");
+    return ret;
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -674,9 +788,54 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz)
 {
-    ScopedLock rwl(&reply_window_m_);
+    std::map<unsigned int,std::list<reply_t> >::iterator clt;
+    std::list<reply_t>::iterator it;
+    unsigned int xid_min = 65536 * 8;//for test only
+    static unsigned int zzzcount=0;
 
+    ScopedLock rwl(&reply_window_m_);
     // Your lab3 code goes here
+
+    ++zzzcount;
+    printf("zzz add_rep(%u): clt(%u) xid(%u) sz(%d)\n",zzzcount, clt_nonce, xid, sz);
+
+    clt = reply_window_.find(clt_nonce);
+    if (clt != reply_window_.end()) {
+    }
+    else {
+        printf("zzz add_rep: can this ever happen?\n");
+        /*// create a new std::list<reply_t> for the new clt
+        std::list<reply_t> newl;
+        // add newr(eply) to list before insert into map
+        newl.push_back(newr);
+        reply_window_.insert(std::pair<unsigned int,
+                   std::list<reply_t> >(clt_nonce, newl));
+        */
+    }
+
+    // for test only
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid_min > (*it).xid)
+            xid_min = (*it).xid;
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid == (*it).xid) { // found xid
+            if ((*it).cb_present == true) {
+                printf("zzz add_rep: cb_present already true...\n");
+            }
+
+            (*it).buf = (char*)malloc(sizeof(char)*sz);
+            (*it).sz = sz;
+            memcpy((*it).buf, b, sz);
+            (*it).cb_present = true;
+            break;
+        }
+    }
+    if (it == clt->second.end()) {
+        // xid not found
+        printf("zzz add_reply: xid(%u)/xid_min(%u) not found!\n", xid, xid_min);
+    }
 }
 
 void
@@ -693,6 +852,13 @@ rpcs::free_reply_window(void)
 		clt->second.clear();
 	}
 	reply_window_.clear();
+}
+
+void
+rpcs::free_xid_trace(void)
+{
+	ScopedLock rwl(&reply_window_m_);
+	xid_trace_.clear();
 }
 
 // rpc handler

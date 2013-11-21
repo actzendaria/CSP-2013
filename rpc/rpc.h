@@ -299,8 +299,10 @@ class rpcs : public chanmgr {
 	// per client that that client hasn't acknowledged receiving yet.
         // indexed by client nonce.
 	std::map<unsigned int, std::list<reply_t> > reply_window_;
+	std::map<unsigned int, unsigned int > xid_trace_;
 
 	void free_reply_window(void);
+	void free_xid_trace(void);
 	void add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz);
 
 	rpcstate_t checkduplicate_and_update(unsigned int clt_nonce, 
