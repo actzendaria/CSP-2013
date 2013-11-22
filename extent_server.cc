@@ -17,7 +17,7 @@ extent_server::extent_server()
 int extent_server::create(uint32_t type, extent_protocol::extentid_t &id)
 {
   // alloc a new inode and return inum
-  printf("zzz: es: create inode\n");
+  //printf("zzz: es: create inode\n");
   id = im->alloc_inode(type);
 
   return extent_protocol::OK;
@@ -29,7 +29,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
   
   const char * cbuf = buf.c_str();
   int size = buf.size();
-  printf("zzz: es: put %lld, bufsz:%u\n", id, buf.size());
+  //printf("zzz: es: put %lld, bufsz:%u\n", id, buf.size());
   im->write_file(id, cbuf, size);
   
   return extent_protocol::OK;
@@ -37,7 +37,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
-  printf("zzz: es: get %lld\n", id);
+  //printf("zzz: es: get %lld\n", id);
 
   id &= 0x7fffffff;
 
@@ -57,7 +57,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
-  printf("zzz: es: getattr %lld\n", id);
+  //printf("zzz: es: getattr %lld\n", id);
 
   id &= 0x7fffffff;
   
@@ -71,7 +71,7 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
-  printf("zzz: es: remove %lld\n", id);
+  //printf("zzz: es: remove %lld\n", id);
 
   id &= 0x7fffffff;
   im->remove_file(id);

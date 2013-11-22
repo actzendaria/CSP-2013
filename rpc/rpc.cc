@@ -667,7 +667,6 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     std::map<unsigned int, unsigned int>::iterator xlt;
     std::list<reply_t>::iterator it;
     unsigned int xid_min;
-    static unsigned int zzzcount = 0;
     //rpcstate_t ret = NEW;
     rpcstate_t ret;
 
@@ -681,10 +680,6 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
         printf("zzz dup&update: can this ever happen?\n");
     }
 
-    ++zzzcount;
-    printf("zzz dup&update(%u): clt(%u) xid(%u) xid_rep(%u) his(%u)\n",
-            zzzcount, clt_nonce, xid, xid_rep, xlt->second);
-
     if ((xlt->second) < xid_rep)
         xlt->second = xid_rep;
     xid_min = xlt->second;
@@ -693,24 +688,11 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     if (clt != reply_window_.end()) {
     }
     else {
-        // create a new std::list<reply_t> for the new clt
         printf("zzz dup&update: can this ever happen?\n");
-        /*std::list<reply_t> newl;
-        newl.push_back(newr);
-        reply_window_.insert(std::pair<unsigned int,
-                   std::list<reply_t> >(clt_nonce, newl));
-        */
     }
 
     for (it = clt->second.begin(); it != clt->second.end(); it++) {
-        //if (it == clt->second.begin()) {
-        //    xid_min = (*it).xid;
-        //    continue;
-        //}
-            
         if (xid_min > (*it).xid) {
-            printf("zzz: dup&update(%u): xid_min(%u) > exist_xid(%u)\n",
-                   zzzcount, xid_min, (*it).xid);
             xid_min = (*it).xid;
         }
     }
@@ -734,19 +716,11 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
         // xid not found
         //if ((clt->second.size() > 0) && (xid < xid_min)) { // might once seen xid? check if xid_min is really inited
         if ((xid < xid_min)) { // might once seen xid?
-            printf("zzz: dup&update(%u): FORGOTTEN xid(%u)/min(%u)/rep(%u)\n",
-                    zzzcount, xid, xid_min, xid_rep);
             ret = FORGOTTEN;
         }
         else { // create it & push it into list
             reply_t newr(xid);
             newr.cb_present = false;
-
-            // don't have buf/sz now
-            //newr.buf = (char*)malloc(sizeof(char)*sz);
-            //newr.sz = sz;
-            //memcpy(newr.buf, b, sz);
-
             (clt->second).push_back(newr);
             ret = NEW;
         }
@@ -754,29 +728,15 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 
     // update window
     // if (xid_min <= xid_rep) { // xid_min is the minium exist reply_t in list, xid_rep is the maxium replyed ACKed
-        for (it = clt->second.begin(); it != clt->second.end(); ) {
-            if ((*it).xid <= xid_rep) { // xid reply from clt, free it
-                printf("zzz dup&update(%u): clt(%u) freeing(%u) rep(%u)\n",
-                       zzzcount, clt_nonce, (*it).xid, xid_rep);
-                free((*it).buf);
-                it = (clt->second).erase(it);
-            }
-            else
-                ++it;
+    for (it = clt->second.begin(); it != clt->second.end(); ) {
+        if ((*it).xid <= xid_rep) { // xid reply from clt, free it
+            free((*it).buf);
+            it = (clt->second).erase(it);
         }
+        else
+            ++it;
+    }
     //}
-
-    printf("zzz dup&update(%u) clt(%u):", zzzcount, clt_nonce);
-    if (ret == NEW)
-        printf(" NEW\n");
-    else if (ret == INPROGRESS)
-        printf(" INPROGRESS\n");
-    else if (ret == DONE)
-        printf(" DONE\n");
-    else if (ret == FORGOTTEN)
-        printf(" FORGOTTEN\n");
-    else
-        printf(" ???\n");
     return ret;
 }
 
@@ -790,33 +750,15 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz)
 {
     std::map<unsigned int,std::list<reply_t> >::iterator clt;
     std::list<reply_t>::iterator it;
-    unsigned int xid_min = 65536 * 8;//for test only
-    static unsigned int zzzcount=0;
 
     ScopedLock rwl(&reply_window_m_);
     // Your lab3 code goes here
-
-    ++zzzcount;
-    printf("zzz add_rep(%u): clt(%u) xid(%u) sz(%d)\n",zzzcount, clt_nonce, xid, sz);
 
     clt = reply_window_.find(clt_nonce);
     if (clt != reply_window_.end()) {
     }
     else {
         printf("zzz add_rep: can this ever happen?\n");
-        /*// create a new std::list<reply_t> for the new clt
-        std::list<reply_t> newl;
-        // add newr(eply) to list before insert into map
-        newl.push_back(newr);
-        reply_window_.insert(std::pair<unsigned int,
-                   std::list<reply_t> >(clt_nonce, newl));
-        */
-    }
-
-    // for test only
-    for (it = clt->second.begin(); it != clt->second.end(); it++) {
-        if (xid_min > (*it).xid)
-            xid_min = (*it).xid;
     }
 
     for (it = clt->second.begin(); it != clt->second.end(); it++) {
@@ -834,7 +776,7 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz)
     }
     if (it == clt->second.end()) {
         // xid not found
-        printf("zzz add_reply: xid(%u)/xid_min(%u) not found!\n", xid, xid_min);
+        printf("zzz add_reply: xid(%u) not found!\n", xid);
     }
 }
 

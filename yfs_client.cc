@@ -74,7 +74,7 @@ yfs_client::getfile(inum inum, fileinfo &fin)
 {
     int r = OK;
 
-    printf("getfile %016llx\n", inum);
+    //printf("getfile %016llx\n", inum);
     extent_protocol::attr a;
 
     int acq;
@@ -89,7 +89,7 @@ yfs_client::getfile(inum inum, fileinfo &fin)
     fin.mtime = a.mtime;
     fin.ctime = a.ctime;
     fin.size = a.size;
-    printf("getfile %016llx -> sz %llu\n", inum, fin.size);
+    //printf("getfile %016llx -> sz %llu\n", inum, fin.size);
 
 release:
     if (acq <= 0)
@@ -102,7 +102,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
 {
     int r = OK;
 
-    printf("getdir %016llx\n", inum);
+    //printf("getdir %016llx\n", inum);
     extent_protocol::attr a;
 
     int acq;
@@ -397,7 +397,7 @@ yfs_client::write(inum ino, size_t size, off_t off, const char *data,
     }
     std::string strdata(data, size);
 
-    printf("zzz: yfs:write: ino(%llu), sz(%u), data=(%s)\n", ino, size, data);
+    //printf("zzz: yfs:write: ino(%llu), sz(%u), data=(%s)\n", ino, size, data);
 
     /*
      * your lab2 code goes here.
