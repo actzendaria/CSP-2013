@@ -9,75 +9,57 @@
 lock_server::lock_server():
   nacquire (0)
 {
-  pthread_mutex_init(&mtx, NULL);
-  pthread_cond_init (&cv, NULL);
-}
-
-lock_server::~lock_server()
-{
-  pthread_mutex_destroy(&mtx);
-  pthread_cond_destroy (&cv);
-  //pthread_exit(NULL);
+  VERIFY(pthread_mutex_init(&mx, NULL) == 0);
+  VERIFY(pthread_cond_init(&cv, 0) == 0);
+  printf("lock_server: init\n");
 }
 
 lock_protocol::status
 lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 {
+  pthread_mutex_lock(&mx);
   lock_protocol::status ret = lock_protocol::OK;
-  printf("stat request from clt %d\n", clt);
-  r = nacquire;
+  if (llock.find(lid) == llock.end()) {
+    r = -2;
+  }
+  else {
+    if ((llock[lid]).owner != clt)
+      r = -1;
+    else if (llock[lid].ls == FREE)
+      r = 0;
+    else
+      r = llock[lid].owner;
+  }
+
+  pthread_mutex_unlock(&mx);
   return ret;
 }
 
 lock_protocol::status
 lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
 {
+  //printf("acquire request from clt %d\n", clt);
   lock_protocol::status ret = lock_protocol::OK;
-  printf("acq request from clt %d\n", clt);
-
-  // use a simple spin-like block if locked
-  std::map<lock_protocol::lockid_t, lstatus>::iterator it;
-
-  pthread_mutex_lock(&mtx);
-  if ( (it = llock.find(lid)) != llock.end() ) {
-    // lock exist
-    //pthread_mutex_lock(&mtx);
-
-    while(it->second != FREE) {
-      pthread_cond_wait(&cv, &mtx);
-      if (it->second == FREE) {
-        break;
-      }
-    }
-    it->second = LOCKED;
-    pthread_mutex_unlock(&mtx);
-    //pthread_exit(NULL);
-    r = nacquire;
-    return ret;
-
-    /*while(true) {
-      if (it->second == FREE) {
-        it->second = LOCKED;
-        pthread_mutex_unlock(&mtx);
-        r = nacquire;
-        return ret;
+  {
+    pthread_mutex_lock(&mx);
+    while (true) {
+      if (llock.find(lid) == llock.end() || llock[lid].ls == FREE) {
+        llock[lid].ls = LOCKED;
+        llock[lid].owner = clt;
         break;
       }
       else {
-        pthread_cond_wait(&cv, &mtx);
+        if (llock[lid].owner == clt) {
+          --nacquire;
+          break;
+        }
+        VERIFY(pthread_cond_wait(&cv, &mx) == 0);
       }
-    }*/
+    }
   }
-  else { // create & lock
-    //pthread_mutex_lock(&mtx);
-    llock.insert(std::pair<lock_protocol::lockid_t, lstatus>(lid, LOCKED));
-    pthread_mutex_unlock(&mtx);
-    r = nacquire;
-    return ret;
-  }
-
+  ++nacquire;
   r = nacquire;
-  ret = lock_protocol::RETRY;
+  pthread_mutex_unlock(&mx);
   return ret;
 }
 
@@ -85,31 +67,22 @@ lock_protocol::status
 lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
 {
   lock_protocol::status ret = lock_protocol::OK;
-  printf("rls request from clt %d\n", clt);
-  std::map<lock_protocol::lockid_t, lstatus>::iterator it;
-
-  pthread_mutex_lock(&mtx);
-  if ( (it = llock.find(lid)) != llock.end() ) {
-    // lock exist
-    if (it->second == LOCKED) {
-      it->second = FREE;
-      pthread_cond_broadcast(&cv);
-    }
-    else {
+  r = nacquire;
+  {
+    pthread_mutex_lock(&mx);
+    if (llock.find(lid) == llock.end()) {
       ret = lock_protocol::NOENT;
     }
-
-    pthread_mutex_unlock(&mtx);
-    r = nacquire;
-    return ret;
+    else if (llock[lid].owner != clt) {
+      ret = lock_protocol::NOENT;
+    }
+    else {
+      llock[lid].owner = -1;
+      llock[lid].ls = FREE;
+      --nacquire;
+      VERIFY(pthread_cond_broadcast(&cv) == 0);
+    }
   }
-  else {
-    r = nacquire;
-    ret = lock_protocol::NOENT;
-    return ret;
-  }
-
-  r = nacquire;
-  ret = lock_protocol::RETRY;
+  pthread_mutex_unlock(&mx);
   return ret;
 }
