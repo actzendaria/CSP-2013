@@ -49,10 +49,10 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
         break;
       }
       else {
-        if (llock[lid].owner == clt) {
-          --nacquire;
-          break;
-        }
+        //if (llock[lid].owner == clt) {
+        //  --nacquire;
+        //  break;
+        //}
         VERIFY(pthread_cond_wait(&cv, &mx) == 0);
       }
     }
@@ -73,9 +73,9 @@ lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
     if (llock.find(lid) == llock.end()) {
       ret = lock_protocol::NOENT;
     }
-    else if (llock[lid].owner != clt) {
-      ret = lock_protocol::NOENT;
-    }
+    //else if (llock[lid].owner != clt) {
+    //  ret = lock_protocol::NOENT;
+    //}
     else {
       llock[lid].owner = -1;
       llock[lid].ls = FREE;
