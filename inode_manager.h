@@ -35,6 +35,7 @@ typedef struct superblock {
 class block_manager {
  private:
   disk *d;
+  // using_blocks is not in use
   std::map <uint32_t, int> using_blocks;
  public:
   block_manager();
@@ -53,14 +54,28 @@ class block_manager {
 // Inodes per block.
 #define IPB           (BLOCK_SIZE / sizeof(struct inode))
 
+// Q: Why 3? A blank block is left between bitmap & inode table.
+// Inode table Block Head/Tail
+#define IBH(nblocks) ((nblocks)/BPB + 3)
+#define IBT(nblocks) ((IBH(nblocks) + (INODE_NUM+IPB-1)/IPB))
+// Head of "Data Block" == Tail of "Inode table Block"
+#define DBH(nblocks) IBT(nblocks)
+
 // Block containing inode i
 #define IBLOCK(i, nblocks)     ((nblocks)/BPB + (i)/IPB + 3)
 
+// Byte Size
+#define BYTE_SIZE 8
+
 // Bitmap bits per block
-#define BPB           (BLOCK_SIZE*8)
+#define BPB           (BLOCK_SIZE*BYTE_SIZE)
+
+// Bitmap Block Head/Tail
+#define BBH  2
+#define BBT  (BBH + (BLOCK_NUM+BPB-1/BPB))
 
 // Block containing bit for block b
-#define BBLOCK(b) ((b)/BPB + 2)
+#define BBLOCK(b) ((b)/BPB + BBH)
 
 #define NDIRECT 32
 #define NINDIRECT (BLOCK_SIZE / sizeof(uint))

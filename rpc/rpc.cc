@@ -437,6 +437,8 @@ rpcs::~rpcs()
 	delete listener_;
 	delete dispatchpool_;
 	free_reply_window();
+	free_xid_trace();
+        
 }
 
 bool
@@ -556,6 +558,7 @@ rpcs::dispatch(djob_t *j)
 			// if we don't know about this clt_nonce, create a cleanup object
 			if(reply_window_.find(h.clt_nonce) == reply_window_.end()){
 				VERIFY (reply_window_[h.clt_nonce].size() == 0); // create
+				xid_trace_[h.clt_nonce] = 0; // create corresponding xid trace
 				jsl_log(JSL_DBG_2,
 						"rpcs::dispatch: new client %u xid %d chan %d, total clients %d\n", 
 						h.clt_nonce, h.xid, c->channo(), (int)reply_window_.size());
@@ -660,10 +663,81 @@ rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
                                 unsigned int xid_rep, char **b, int *sz)
 {
-    ScopedLock rwl(&reply_window_m_);
+    std::map<unsigned int,std::list<reply_t> >::iterator clt;
+    std::map<unsigned int, unsigned int>::iterator xlt;
+    std::list<reply_t>::iterator it;
+    unsigned int xid_min;
+    //rpcstate_t ret = NEW;
+    rpcstate_t ret;
 
+    ScopedLock rwl(&reply_window_m_);
     // Your lab3 code goes here
-    return NEW;
+
+    xlt = xid_trace_.find(clt_nonce);
+    if (xlt != xid_trace_.end()) {
+    }
+    else {
+        printf("zzz dup&update: can this ever happen?\n");
+    }
+
+    if ((xlt->second) < xid_rep)
+        xlt->second = xid_rep;
+    xid_min = xlt->second;
+
+    clt = reply_window_.find(clt_nonce);
+    if (clt != reply_window_.end()) {
+    }
+    else {
+        printf("zzz dup&update: can this ever happen?\n");
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid_min > (*it).xid) {
+            xid_min = (*it).xid;
+        }
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid == (*it).xid) { // found xid
+            if ((*it).cb_present == false) {
+                ret = INPROGRESS;
+                break;
+            }
+            else { // cb_present == true
+                ret = DONE;
+                *sz = (*it).sz;
+                *b = (*it).buf;
+                break;
+            }
+        }
+    }
+
+    if (it == clt->second.end()) {
+        // xid not found
+        //if ((clt->second.size() > 0) && (xid < xid_min)) { // might once seen xid? check if xid_min is really inited
+        if ((xid < xid_min)) { // might once seen xid?
+            ret = FORGOTTEN;
+        }
+        else { // create it & push it into list
+            reply_t newr(xid);
+            newr.cb_present = false;
+            (clt->second).push_back(newr);
+            ret = NEW;
+        }
+    }
+
+    // update window
+    // if (xid_min <= xid_rep) { // xid_min is the minium exist reply_t in list, xid_rep is the maxium replyed ACKed
+    for (it = clt->second.begin(); it != clt->second.end(); ) {
+        if ((*it).xid <= xid_rep) { // xid reply from clt, free it
+            free((*it).buf);
+            it = (clt->second).erase(it);
+        }
+        else
+            ++it;
+    }
+    //}
+    return ret;
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -674,9 +748,36 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid, char *b, int sz)
 {
-    ScopedLock rwl(&reply_window_m_);
+    std::map<unsigned int,std::list<reply_t> >::iterator clt;
+    std::list<reply_t>::iterator it;
 
+    ScopedLock rwl(&reply_window_m_);
     // Your lab3 code goes here
+
+    clt = reply_window_.find(clt_nonce);
+    if (clt != reply_window_.end()) {
+    }
+    else {
+        printf("zzz add_rep: can this ever happen?\n");
+    }
+
+    for (it = clt->second.begin(); it != clt->second.end(); it++) {
+        if (xid == (*it).xid) { // found xid
+            if ((*it).cb_present == true) {
+                printf("zzz add_rep: cb_present already true...\n");
+            }
+
+            (*it).buf = (char*)malloc(sizeof(char)*sz);
+            (*it).sz = sz;
+            memcpy((*it).buf, b, sz);
+            (*it).cb_present = true;
+            break;
+        }
+    }
+    if (it == clt->second.end()) {
+        // xid not found
+        printf("zzz add_reply: xid(%u) not found!\n", xid);
+    }
 }
 
 void
@@ -693,6 +794,13 @@ rpcs::free_reply_window(void)
 		clt->second.clear();
 	}
 	reply_window_.clear();
+}
+
+void
+rpcs::free_xid_trace(void)
+{
+	ScopedLock rwl(&reply_window_m_);
+	xid_trace_.clear();
 }
 
 // rpc handler
