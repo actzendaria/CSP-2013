@@ -481,7 +481,10 @@ inode_manager::write_file(uint32_t inum, const char *buf, int size)
 
   tm = time(NULL);
   ino->size = size;
-  ino->ctime = (uint32_t)tm;
+  // change here (lab5)
+  if (ino->type == extent_protocol::T_DIR)
+    ino->ctime = (uint32_t)tm;
+  //ino->ctime = (uint32_t)tm;
   ino->mtime = (uint32_t)tm;
   put_inode(inum, ino);
   free(ino);   
