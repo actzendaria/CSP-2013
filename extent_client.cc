@@ -152,7 +152,7 @@ extent_protocol::status
 extent_client::remove(extent_protocol::extentid_t eid)
 {
   extent_protocol::status ret = extent_protocol::OK;
-  int tmp;
+  //int tmp;
 
   // cache for eid is no longer valid since it is removed
   extent_cache[eid].valid_buf = false;
@@ -162,8 +162,9 @@ extent_client::remove(extent_protocol::extentid_t eid)
   extent_cache[eid].attr.atime = 0;
   extent_cache[eid].attr.mtime = 0;
   extent_cache[eid].attr.ctime = 0;
+  extent_cache.erase(eid);
 
-  ret = cl->call(extent_protocol::remove, eid, tmp);
+  //ret = cl->call(extent_protocol::remove, eid, tmp);
   printf("zzz: ec: remove eid(%llu)\n", eid);
   // Your lab3 code goes here
   return ret;
