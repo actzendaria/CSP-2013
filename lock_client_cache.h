@@ -11,6 +11,7 @@
 #include "lock_client.h"
 #include "lang/verify.h"
 
+#include "extent_client.h"
 // change dprintf to nothing to clean debug messages
 #define dprintf(args...) do { \
         /*do nothing*/ /*tprintf(args...)*/   \
@@ -23,6 +24,15 @@ class lock_release_user {
  public:
   virtual void dorelease(lock_protocol::lockid_t) = 0;
   virtual ~lock_release_user() {};
+};
+
+class lock_release_eclt : public lock_release_user {
+ private:
+  extent_client* ec;
+ public:
+  void dorelease(lock_protocol::lockid_t);
+  lock_release_eclt(extent_client* e){ec = e;}
+  ~lock_release_eclt() {}
 };
 
 class lock_client_cache : public lock_client {

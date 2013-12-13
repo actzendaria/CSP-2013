@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "tprintf.h"
 
+#include "extent_client.h"
 int lock_client_cache::last_port = 0;
 
 void lock_client_cache::release_lock() {
@@ -16,6 +17,8 @@ void lock_client_cache::release_lock() {
     lock_protocol::lockid_t lid = lhandler.outque();
     dprintf("lock_client_cache: release lock: got lock(%llu) sending release RPC to server\n", lid);
     int tmp;
+    if (lu != NULL)
+      lu->dorelease(lid);
     lock_protocol::status ret = cl->call(lock_protocol::release, lid, id, tmp);
     if (ret != lock_protocol::OK) {
       dprintf("lock_client_cache: lhandler thread: release RPC failed on lock(%llu)!\n", lid);
@@ -170,6 +173,8 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
     llock[lid].ls = RELEASING;
     pthread_mutex_unlock(&mx);
     int tmp;
+    if (lu != NULL)
+      lu->dorelease(lid);
     ret = cl->call(lock_protocol::release, lid, id, tmp);
     if (ret != lock_protocol::OK)
       dprintf("lock_client_cache: release() RPC to clt failed!\n");
@@ -293,3 +298,11 @@ lock_client_cache::retry_handler(lock_protocol::lockid_t lid,
   return ret;
 }
 
+void lock_release_eclt::dorelease(lock_protocol::lockid_t lid) {
+  if (ec == NULL) {
+    printf("lock_release_eclt: dorelease ec is NULL!\n");
+    return;
+  }
+
+  ec->flush((extent_protocol::extentid_t)lid);
+}

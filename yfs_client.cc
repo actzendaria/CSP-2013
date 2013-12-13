@@ -12,12 +12,21 @@
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
-  lc = new lock_client_cache(lock_dst);
+  lu = new lock_release_eclt(ec);
+  lc = new lock_client_cache(lock_dst, lu);
 
   lc->acquire(1);
   if (ec->put(1, "") != extent_protocol::OK)
       printf("error init root dir\n"); // XYB: init root dir
   lc->release(1);
+}
+
+yfs_client::~yfs_client()
+{
+  delete lc;
+  delete lu;
+  delete ec;
+  printf("yfs_client: destroying...\n");
 }
 
 yfs_client::inum
@@ -83,8 +92,9 @@ yfs_client::_isdir(inum inum)
 int
 yfs_client::getfile(inum inum, fileinfo &fin)
 {
+  int ret;
   lc->acquire(inum);
-  int ret = _getfile(inum, fin);
+  ret = _getfile(inum, fin);
   lc->release(inum);
   return ret;
 }
@@ -115,10 +125,11 @@ release:
 int
 yfs_client::getdir(inum inum, dirinfo &din)
 {
+  int ret;
   lc->acquire(inum);
-  int r = _getdir(inum, din);
+  ret = _getdir(inum, din);
   lc->release(inum);
-  return r;
+  return ret;
 }
 
 int
@@ -152,10 +163,11 @@ release:
 int
 yfs_client::setattr(inum ino, size_t size)
 {
+  int ret;
   lc->acquire(ino);
-  int r = _setattr(ino, size);
+  ret = _setattr(ino, size);
   lc->release(ino);
-  return r;
+  return ret;
 }
 
 // Only support set size of attr
@@ -203,10 +215,11 @@ yfs_client::_setattr(inum ino, size_t size)
 int
 yfs_client::create(inum parent, const char *name, mode_t mode, inum &ino_out, bool isdir)
 {
+  int ret;
   lc->acquire(parent);
-  int r = _create(parent, name, mode, ino_out, isdir);
+  ret = _create(parent, name, mode, ino_out, isdir);
   lc->release(parent);
-  return r;
+  return ret;
 }
 
 int
@@ -267,10 +280,11 @@ yfs_client::_create(inum parent, const char *name, mode_t mode, inum &ino_out, b
 int
 yfs_client::lookup(inum parent, const char *name, bool &found, inum &ino_out)
 {
+  int ret;
   lc->acquire(parent);
-  int r = _lookup(parent, name, found, ino_out);
+  ret = _lookup(parent, name, found, ino_out);
   lc->release(parent);
-  return r;
+  return ret;
 }
 
 int
@@ -308,10 +322,11 @@ yfs_client::_lookup(inum parent, const char *name, bool &found, inum &ino_out)
 int
 yfs_client::readdir(inum dir, std::list<dirent> &list)
 {
+  int ret;
   lc->acquire(dir);
-  int r = _readdir(dir, list);
+  ret = _readdir(dir, list);
   lc->release(dir);
-  return r;
+  return ret;
 }
 
 int
@@ -360,10 +375,11 @@ yfs_client::_readdir(inum dir, std::list<dirent> &list)
 int
 yfs_client::read(inum ino, size_t size, off_t off, std::string &data)
 {
+  int ret;
   lc->acquire(ino);
-  int r = _read(ino, size, off, data);
+  ret = _read(ino, size, off, data);
   lc->release(ino);
-  return r;
+  return ret;
 }
 
 int
@@ -397,10 +413,11 @@ int
 yfs_client::write(inum ino, size_t size, off_t off, const char *data,
         size_t &bytes_written)
 {
+  int ret;
   lc->acquire(ino);
-  int r = _write(ino, size, off, data, bytes_written);
+  ret = _write(ino, size, off, data, bytes_written);
   lc->release(ino);
-  return r;
+  return ret;
 }
 
 int
@@ -450,10 +467,11 @@ yfs_client::_write(inum ino, size_t size, off_t off, const char *data,
 
 int yfs_client::unlink(inum parent,const char *name)
 {
+  int ret;
   lc->acquire(parent);
-  int r = _unlink(parent, name);
+  ret = _unlink(parent, name);
   lc->release(parent);
-  return r;
+  return ret;
 }
 
 int yfs_client::_unlink(inum parent,const char *name)

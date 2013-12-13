@@ -7,8 +7,6 @@
 #include <unistd.h>
 #include <time.h>
 
-#define REMOVE_WRITE_BACk 1
-
 extent_client::extent_client(std::string dst)
 {
   sockaddr_in dstsock;
@@ -171,12 +169,12 @@ extent_client::remove(extent_protocol::extentid_t eid)
   extent_protocol::status ret = extent_protocol::OK;
   pthread_mutex_lock(&mx);
 
-#ifdef REMOVE_WRITE_BACK
+//if REMOVE_WRITE_BACK
   printf("ZZZ REMOVE HELLO!\n");
   int tmp;
   extent_cache.erase(eid);
   ret = cl->call(extent_protocol::remove, eid, tmp);
-#else
+/* //NOT USING REMOTE_WRITE_BACK
   // cache for eid is no longer valid since it is removed
   extent_cache[eid].valid_buf = false;
   extent_cache[eid].valid_attr = false;
@@ -187,7 +185,7 @@ extent_client::remove(extent_protocol::extentid_t eid)
   extent_cache[eid].attr.ctime = 0;
   extent_cache[eid].removed = true;
   //extent_cache.erase(eid);
-#endif
+*/
   pthread_mutex_unlock(&mx);
   printf("zzz: ec: remove eid(%llu)\n", eid);
   // Your lab3 code goes here
@@ -201,7 +199,6 @@ extent_client::flush(extent_protocol::extentid_t eid)
   std::string buf;
   int tmp;
   pthread_mutex_lock(&mx);
-#ifdef REMOVE_WRITE_BACK
   // if eid is removed, cannot find eid since it was erased
   if (extent_cache.find(eid) == extent_cache.end()) {
     // removed or wrong eid input
@@ -218,7 +215,7 @@ extent_client::flush(extent_protocol::extentid_t eid)
     printf("ec flush(%llu), REMOVE WRITE_BACK not dirty, no RPC call...\n", eid);
     // no need to put back to server
   }
-#else
+  /* //NOT USING REMOTE WRITE BACK
   if (extent_cache.find(eid) == extent_cache.end()) {
     printf("ec flush(%llu), first time, unknown eid!\n", eid);
     pthread_mutex_unlock(&mx);
@@ -240,9 +237,9 @@ extent_client::flush(extent_protocol::extentid_t eid)
     // no need to put back to server
   }
   // disable eid's local cache
-  extent_cache.erase(eid);
-#endif
+  */
 
+  extent_cache.erase(eid);
   pthread_mutex_unlock(&mx);
   printf("ec: flush eid(%llu)\n", eid);
   return ret;
