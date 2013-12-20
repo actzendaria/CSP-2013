@@ -1,4 +1,4 @@
-LAB=5
+LAB=6
 SOL=0
 RPC=./rpc
 LAB1GE=$(shell expr $(LAB) \>\= 1)
@@ -135,5 +135,5 @@ handin_file=lab$(LAB).tgz
 labdir=$(shell basename $(PWD))
 handin: 
 	@bash -c "cd ../; tar -X <(tr ' ' '\n' < <(echo '$(handin_ignore)')) -czvf $(handin_file) $(labdir); mv $(handin_file) $(labdir); cd $(labdir)"
-	@echo Please modify lab5.tgz to lab5_[your student id].tgz and upload it to ftp://ytliu.cc:public@public.sjtu.edu.cn/upload/lab5
+	@echo Please modify lab6.tgz to lab6_[your student id].tgz and upload it to ftp://ytliu.cc:public@public.sjtu.edu.cn/upload/lab6
 	@echo Thanks!
