@@ -12,10 +12,7 @@
 #include "lang/verify.h"
 
 #include "extent_client.h"
-// change dprintf to nothing to clean debug messages
-#define dprintf(args...) do { \
-        /*do nothing*/ /*tprintf(args...)*/   \
-        } while (0);
+#include "tprintf.h"
 
 // Classes that inherit lock_release_user can override dorelease so that 
 // that they will be called when lock_client releases a lock.

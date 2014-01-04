@@ -26,7 +26,7 @@ yfs_client::~yfs_client()
   delete lc;
   delete lu;
   delete ec;
-  printf("yfs_client: destroying...\n");
+  dprintf("yfs_client: destroying...\n");
 }
 
 yfs_client::inum
@@ -66,10 +66,10 @@ yfs_client::_isfile(inum inum)
     }
 
     if (a.type == extent_protocol::T_FILE) {
-        //printf("isfile: %lld is a file\n", inum);
+        //dprintf("isfile: %lld is a file\n", inum);
         return true;
     } 
-    //printf("isfile: %lld is a dir\n", inum);
+    //dprintf("isfile: %lld is a dir\n", inum);
     return false;
 }
 
@@ -104,7 +104,7 @@ yfs_client::_getfile(inum inum, fileinfo &fin)
 {
     int r = OK;
 
-    //printf("getfile %016llx\n", inum);
+    //dprintf("getfile %016llx\n", inum);
     extent_protocol::attr a;
 
     if (ec->getattr(inum, a) != extent_protocol::OK) {
@@ -116,7 +116,7 @@ yfs_client::_getfile(inum inum, fileinfo &fin)
     fin.mtime = a.mtime;
     fin.ctime = a.ctime;
     fin.size = a.size;
-    //printf("getfile %016llx -> sz %llu\n", inum, fin.size);
+    //dprintf("getfile %016llx -> sz %llu\n", inum, fin.size);
 
 release:
     return r;
@@ -137,7 +137,7 @@ yfs_client::_getdir(inum inum, dirinfo &din)
 {
     int r = OK;
 
-    //printf("getdir %016llx\n", inum);
+    //dprintf("getdir %016llx\n", inum);
     extent_protocol::attr a;
 
     if (ec->getattr(inum, a) != extent_protocol::OK) {
@@ -272,6 +272,12 @@ yfs_client::_create(inum parent, const char *name, mode_t mode, inum &ino_out, b
     if ((ec->put(parent, buf_disk)) != extent_protocol::OK) {
         r = IOERR;
         return r;
+    }
+    if (isdir) {
+      dprintf("yfs_client: create() name=%s; ino=%llu;parent=%llu ;dir\n", name, ino_out, parent);
+    }
+    else {
+      dprintf("yfs_client: create() name=%s; ino=%llu;parent=%llu ;file\n", name, ino_out, parent);
     }
 
     return r;

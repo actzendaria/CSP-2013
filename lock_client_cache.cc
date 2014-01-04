@@ -211,8 +211,7 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid,
       llock[lid].owner = 0;
     }
     else if (llock[lid].ls != NONE) {
-      dprintf("lock_client_cache revoke_handler(): lid(%llu) status is not NONE when receiving revoke RPC!\n", lid);
-      assert(true);
+      dprintf("lock_client_cache revoke_handler(): lid(%llu) status is not NONE(%d) when receiving revoke RPC!\n", lid, llock[lid].ls);
     }
       
     while (true) {

@@ -58,6 +58,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
       handle h(hid);
       if (h.safebind()) {
         rret =  h.safebind()->call(rlock_protocol::revoke, lid, tmp);
+        tprintf("lock_server_cache: acquire() RPC to clt waiting, server sent revoke to holder!\n");
       }
       if (!h.safebind() || rret != rlock_protocol::OK) {
         tprintf("lock_server_cache: acquire() RPC to clt failed!\n");
@@ -69,6 +70,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
       llock[lid].wclts.push_back(id);
       pthread_mutex_unlock(&mx);
       ret = lock_protocol::RETRY;
+      tprintf("lock_server_cache: acquire() RPC to clt already have waiting clts!\n");
     }
   }
   r = (++nacquire);

@@ -8,6 +8,7 @@
 
 //#include "yfs_protocol.h"
 #include "extent_client.h"
+#include "tprintf.h"
 #include <vector>
 
 

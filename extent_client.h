@@ -7,6 +7,7 @@
 #include "extent_protocol.h"
 #include "extent_server.h"
 
+#include "tprintf.h"
 #include <map>
 #include <pthread.h>
 
