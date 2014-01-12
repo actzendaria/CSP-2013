@@ -103,16 +103,21 @@ proposer::run(int instance, std::vector<std::string> cur_nodes, std::string newv
     return false;
   }
   stable = false;
-  setn();
-  accepts.clear();
+  setn();          // grab a unique and larger n ( > my_n.n AND highest_n_seen_in_prepare_of_acceptor)
+  accepts.clear(); // record acceptors
   v.clear();
+  
+  tprintf("----run(%s) prepare(ins(%u), Ncur_nodes(%lu)): my newv(%s)\n",
+          me.c_str(), instance, cur_nodes.size(), newv.c_str());
   if (prepare(instance, accepts, cur_nodes, v)) {
 
     if (majority(cur_nodes, accepts)) {
-      tprintf("paxos::manager: received a majority of prepare responses\n");
+      tprintf("paxos::manager: received a majority of prepare responses (%lu of %lu)\n", cur_nodes.size(), accepts.size());
 
-      if (v.size() == 0)
+      if (v.size() == 0) {
+        tprintf("paxos::manager: majority responses but no value, use my own(newv).\n");
 	v = newv;
+      }
 
       breakpoint1();
 
@@ -121,7 +126,7 @@ proposer::run(int instance, std::vector<std::string> cur_nodes, std::string newv
       accept(instance, accepts, nodes, v);
 
       if (majority(cur_nodes, accepts)) {
-	tprintf("paxos::manager: received a majority of accept responses\n");
+	tprintf("paxos::manager: received a majority of accept responses (%lu of %lu)\n", cur_nodes.size(), accepts.size());
 
 	breakpoint2();
 
@@ -153,7 +158,78 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
   // You fill this in for the part of paxos
   // Note: if got an "oldinstance" reply, commit the instance using
   // acc->commit(...), and return false.
-  return false;
+  int ret = rpc_const::timeout_failure;
+  bool res = true;
+  std::string m;
+  paxos_protocol::preparearg parg;
+  paxos_protocol::prepareres pres;
+  prop_t n_a_h;
+  n_a_h.n = 0;
+  n_a_h.m = "";
+
+  //tprintf("prepare to all nodes (%s)\n"/*, m.c_str()*/, me);
+  tprintf("prepare to all nodes (%s)\n"/*, m.c_str()*/, me.c_str());
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    m.clear();
+    m = nodes[i];
+    handle h(m);
+    parg.instance = instance;
+    parg.n = my_n;
+    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    rpcc *cl = h.safebind();
+    if (cl) {
+      ret = cl->call(paxos_protocol::preparereq, me, parg, pres, 
+	             rpcc::to(1000));
+    }
+    else {
+      continue;
+    }   
+    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
+    if (ret != paxos_protocol::OK) {
+      if (ret == rpc_const::atmostonce_failure || 
+	  ret == rpc_const::oldsrv_failure) {
+        tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d) delete handler\n", 
+	       me.c_str(), m.c_str(), ret);
+        //mgr.delete_handle(m);
+      } else {
+        tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d)\n", 
+	       me.c_str(), m.c_str(), ret);
+        //res = false;
+      }
+    }
+    else {
+      if (pres.oldinstance) {
+        tprintf("proposer prepare(): me(%s)->(%s) old instance(%u)\n", 
+	       me.c_str(), m.c_str(), instance);
+        // acc->commit(...), and return false.
+        acc->commit(instance, pres.v_a);
+        res = false;
+        return res;
+      }
+      else if (pres.accept) {
+        accepts.push_back(m);
+        if (n_a_h.m == "" && n_a_h.n == 0) {
+          n_a_h = pres.n_a;
+          v = pres.v_a;
+        }
+        else if (pres.n_a > n_a_h) {
+          n_a_h = pres.n_a;
+          v = pres.v_a;
+        }
+        else {
+          /* Do not update v(value)with a lower n(proposal num).*/
+        }
+      }
+      else if (!pres.accept) {
+      }
+      else {
+        tprintf("!!!proposer(%s) prepare(): unknown RPC result!!!\n", me.c_str());
+      }
+    }
+  }
+  tprintf("proposer(%s) prepare(): done %d\n", me.c_str(), res);
+  return res;
+  //return false;
 }
 
 // run() calls this to send out accept RPCs to accepts.
@@ -163,6 +239,51 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
         std::vector<std::string> nodes, std::string v)
 {
   // You fill this in for the part of paxos
+  int ret = rpc_const::timeout_failure;
+  std::string m;
+  paxos_protocol::acceptarg aarg;
+  bool ares;
+
+  tprintf("proposer(%s) accept() to all nodes.\n", me.c_str());
+  for (unsigned i = 0; i < nodes.size(); i++) {
+    tprintf("proposer(%s) accept() to (%u)node (%s)\n", me.c_str(), i, nodes[i].c_str());
+    m.clear();
+    m = nodes[i];
+    handle h(m);
+    aarg.instance = instance;
+    aarg.n = my_n;
+    aarg.v = v;
+    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    rpcc *cl = h.safebind();
+    if (cl) {
+      ret = cl->call(paxos_protocol::acceptreq, me, aarg, ares, 
+	             rpcc::to(1000));
+    }
+    else {
+      continue;
+    }   
+    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
+    if (ret != paxos_protocol::OK) {
+      if (ret == rpc_const::atmostonce_failure || 
+	  ret == rpc_const::oldsrv_failure) {
+        tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d) delete handler\n", 
+	       me.c_str(), m.c_str(), ret);
+        //mgr.delete_handle(m);
+      } else {
+        tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d)\n", 
+	       me.c_str(), m.c_str(), ret);
+        //res = false;
+      }
+    }
+    else {
+      if (!ares) { // proposal rejected
+      }
+      else { // proposal accpeted
+        accepts.push_back(m);
+      }
+    }
+  }
+  tprintf("proposer(%s) accept(): done(void)\n", me.c_str());
 }
 
 void
@@ -170,6 +291,44 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
 	      std::string v)
 {
   // You fill this in for the part of paxos
+  int ret = rpc_const::timeout_failure;
+  std::string m;
+  paxos_protocol::decidearg darg;
+  int dres;
+
+  tprintf("proposer decide() to all accepts (%s) (why not all node!?)\n", me.c_str());
+  for (unsigned i = 0; i < accepts.size(); i++) {
+    m.clear();
+    m = accepts[i];
+    handle h(m);
+    darg.instance = instance;
+    darg.v = v;
+    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    rpcc *cl = h.safebind();
+    if (cl) {
+      ret = cl->call(paxos_protocol::decidereq, me, darg, dres, 
+	             rpcc::to(1000));
+    }
+    else {
+      continue;
+    }  
+    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
+    if (ret != paxos_protocol::OK) {
+      if (ret == rpc_const::atmostonce_failure || 
+	  ret == rpc_const::oldsrv_failure) {
+        tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d) delete handler\n", 
+	       me.c_str(), m.c_str(), ret);
+        //mgr.delete_handle(m);
+      } else {
+        tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d)\n", 
+	       me.c_str(), m.c_str(), ret);
+        //res = false;
+      }
+    }
+    else {
+    }
+  }
+  tprintf("proposer(%s) decide(): done(void)\n", me.c_str());
 }
 
 acceptor::acceptor(class paxos_change *_cfg, bool _first, std::string _me, 
@@ -205,8 +364,36 @@ acceptor::preparereq(std::string src, paxos_protocol::preparearg a,
   // You fill this in for the part of paxos
   // Remember to initialize *BOTH* r.accept and r.oldinstance appropriately.
   // Remember to *log* the proposal if the proposal is accepted.
+  ScopedLock ml(&pxs_mutex);
+  if (a.instance <= instance_h) {
+    // reply oldinstance
+    r.oldinstance = true;
+    r.accept = false;
+    //r.n_a = a.n; // ??? what is the proposal number for this old ins? Review: we won't change it then
+    if (values.find(a.instance) == values.end())
+    {
+      tprintf("old instance(%u): ins_h(%u); value not found in acceptor values!\n", a.instance, instance_h); 
+    }
+    r.v_a = values[a.instance];
+  }
+  else if (a.n > n_h) {
+    // accept the higher proposal
+    n_h = a.n; // refresh the highest seen proposal num
+    r.oldinstance = false;
+    r.accept = true;
+    r.n_a = n_a;
+    r.v_a = v_a;
+    // log the highest seen proposal
+    l->logprop(n_h);
+  }
+  else {
+    // reject a equal or lower proposal
+    r.oldinstance = false;
+    r.accept = false;
+    tprintf("acceptor(%s) from(%s) preparereq(): rejected req(%u,%s) <= cur(%u,%s)\n",
+            me.c_str(), src.c_str(), a.n.n, a.n.m.c_str(), n_h.n, n_h.m.c_str()); 
+  }
   return paxos_protocol::OK;
-
 }
 
 // the src argument is only for debug purpose
@@ -215,7 +402,27 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, bool &r)
 {
   // You fill this in for the part of paxos
   // Remember to *log* the accept if the proposal is accepted.
-
+  ScopedLock ml(&pxs_mutex);
+  if (a.n >= n_h) {
+    // reply accept_ok(n)
+    // shall we need to update n_h(prepare) here?
+    if (a.n > n_h) {
+      tprintf("!!!acceptor acceptreq(): src(%s)'s n(%u;%s) is bigger than our n_h(%u;%s) (we don't update n_h here..)!\n",
+              src.c_str(), a.n.n, a.n.m.c_str(), n_h.n, n_h.m.c_str());
+      //n_h = a.n;
+    }
+    n_a = a.n;
+    v_a = a.v;
+    // log the accept proposal
+    tprintf("acceptor(%s) acceptreq(): src_from(%s) logaccept n=(%u,%s) v=(%s)!\n",
+            me.c_str(), src.c_str(), a.n.n, a.n.m.c_str(), a.v.c_str());
+    l->logaccept(n_a, v_a);
+    r = true;
+  }
+  else {
+    // reply accept_reject
+    r = false;
+  }
   return paxos_protocol::OK;
 }
 
@@ -244,7 +451,7 @@ acceptor::commit_wo(unsigned instance, std::string value)
   //assume pxs_mutex is held
   tprintf("acceptor::commit: instance=%d has v= %s\n", instance, value.c_str());
   if (instance > instance_h) {
-    tprintf("commit: highestaccepteinstance = %d\n", instance);
+    tprintf("commit: highest accepted instance = %d\n", instance);
     values[instance] = value;
     l->loginstance(instance, value);
     instance_h = instance;
