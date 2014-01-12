@@ -107,12 +107,13 @@ proposer::run(int instance, std::vector<std::string> cur_nodes, std::string newv
   accepts.clear(); // record acceptors
   v.clear();
   
-  tprintf("----run(%s) prepare(ins(%u), Ncur_nodes(%lu)): my newv(%s)\n",
-          me.c_str(), instance, cur_nodes.size(), newv.c_str());
+  //tprintf("----run(%s) prepare(ins(%u), Ncur_nodes(%lu)): my newv(%s)\n",
+  //        me.c_str(), instance, cur_nodes.size(), newv.c_str());
   if (prepare(instance, accepts, cur_nodes, v)) {
 
     if (majority(cur_nodes, accepts)) {
-      tprintf("paxos::manager: received a majority of prepare responses (%lu of %lu)\n", cur_nodes.size(), accepts.size());
+      tprintf("paxos::manager: received a majority of prepare responses (%lu of %lu)\n",
+              accepts.size(), cur_nodes.size());
 
       if (v.size() == 0) {
         tprintf("paxos::manager: majority responses but no value, use my own(newv).\n");
@@ -126,7 +127,8 @@ proposer::run(int instance, std::vector<std::string> cur_nodes, std::string newv
       accept(instance, accepts, nodes, v);
 
       if (majority(cur_nodes, accepts)) {
-	tprintf("paxos::manager: received a majority of accept responses (%lu of %lu)\n", cur_nodes.size(), accepts.size());
+	tprintf("paxos::manager: received a majority of accept responses (%lu of %lu)\n",
+                accepts.size(), cur_nodes.size());
 
 	breakpoint2();
 
@@ -166,41 +168,41 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
   prop_t n_a_h;
   n_a_h.n = 0;
   n_a_h.m = "";
+  parg.instance = instance;
+  parg.n = my_n;
 
-  //tprintf("prepare to all nodes (%s)\n"/*, m.c_str()*/, me);
-  tprintf("prepare to all nodes (%s)\n"/*, m.c_str()*/, me.c_str());
+  //tprintf("prepare to all nodes (%s)\n"/*, m.c_str()*/, me.c_str());
   for (unsigned i = 0; i < nodes.size(); i++) {
     m.clear();
     m = nodes[i];
     handle h(m);
-    parg.instance = instance;
-    parg.n = my_n;
-    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
     rpcc *cl = h.safebind();
     if (cl) {
       ret = cl->call(paxos_protocol::preparereq, me, parg, pres, 
 	             rpcc::to(1000));
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     }
     else {
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
       continue;
     }   
-    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     if (ret != paxos_protocol::OK) {
       if (ret == rpc_const::atmostonce_failure || 
 	  ret == rpc_const::oldsrv_failure) {
-        tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d) delete handler\n", 
-	       me.c_str(), m.c_str(), ret);
+        //tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d) delete handler\n", 
+	//       me.c_str(), m.c_str(), ret);
         //mgr.delete_handle(m);
       } else {
-        tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d)\n", 
-	       me.c_str(), m.c_str(), ret);
+        //tprintf("!!!proposer prepare(): problem me(%s)->(%s) (%d)\n", 
+	//       me.c_str(), m.c_str(), ret);
         //res = false;
       }
     }
     else {
       if (pres.oldinstance) {
-        tprintf("proposer prepare(): me(%s)->(%s) old instance(%u)\n", 
-	       me.c_str(), m.c_str(), instance);
+        //tprintf("proposer prepare(): me(%s)->(%s) old instance(%u)\n", 
+	//       me.c_str(), m.c_str(), instance);
         // acc->commit(...), and return false.
         acc->commit(instance, pres.v_a);
         res = false;
@@ -223,13 +225,12 @@ proposer::prepare(unsigned instance, std::vector<std::string> &accepts,
       else if (!pres.accept) {
       }
       else {
-        tprintf("!!!proposer(%s) prepare(): unknown RPC result!!!\n", me.c_str());
+        tprintf("proposer(%s) prepare(): unknown RPC result!!!\n", me.c_str());
       }
     }
   }
   tprintf("proposer(%s) prepare(): done %d\n", me.c_str(), res);
   return res;
-  //return false;
 }
 
 // run() calls this to send out accept RPCs to accepts.
@@ -243,36 +244,36 @@ proposer::accept(unsigned instance, std::vector<std::string> &accepts,
   std::string m;
   paxos_protocol::acceptarg aarg;
   bool ares;
+  aarg.instance = instance;
+  aarg.n = my_n;
+  aarg.v = v;
 
-  tprintf("proposer(%s) accept() to all nodes.\n", me.c_str());
+  //tprintf("proposer(%s) accept() to all nodes.\n", me.c_str());
   for (unsigned i = 0; i < nodes.size(); i++) {
-    tprintf("proposer(%s) accept() to (%u)node (%s)\n", me.c_str(), i, nodes[i].c_str());
+    //tprintf("proposer(%s) accept() to (%u)node (%s)\n", me.c_str(), i, nodes[i].c_str());
     m.clear();
     m = nodes[i];
     handle h(m);
-    aarg.instance = instance;
-    aarg.n = my_n;
-    aarg.v = v;
-    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
     rpcc *cl = h.safebind();
     if (cl) {
       ret = cl->call(paxos_protocol::acceptreq, me, aarg, ares, 
 	             rpcc::to(1000));
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     }
     else {
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
       continue;
     }   
-    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     if (ret != paxos_protocol::OK) {
       if (ret == rpc_const::atmostonce_failure || 
 	  ret == rpc_const::oldsrv_failure) {
-        tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d) delete handler\n", 
-	       me.c_str(), m.c_str(), ret);
+        //tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d) delete handler\n", 
+	//       me.c_str(), m.c_str(), ret);
         //mgr.delete_handle(m);
       } else {
-        tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d)\n", 
-	       me.c_str(), m.c_str(), ret);
-        //res = false;
+        //tprintf("!!!proposer accept(): cannot connect acceptor through RPC me(%s)->(%s) (%d)\n", 
+	//       me.c_str(), m.c_str(), ret);
       }
     }
     else {
@@ -295,34 +296,34 @@ proposer::decide(unsigned instance, std::vector<std::string> accepts,
   std::string m;
   paxos_protocol::decidearg darg;
   int dres;
+  darg.instance = instance;
+  darg.v = v;
 
-  tprintf("proposer decide() to all accepts (%s) (why not all node!?)\n", me.c_str());
+  //tprintf("proposer decide() to all accepts (%s) (why not all node!?)\n", me.c_str());
   for (unsigned i = 0; i < accepts.size(); i++) {
     m.clear();
     m = accepts[i];
     handle h(m);
-    darg.instance = instance;
-    darg.v = v;
-    //VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
+    VERIFY(pthread_mutex_unlock(&pxs_mutex)==0);
     rpcc *cl = h.safebind();
     if (cl) {
       ret = cl->call(paxos_protocol::decidereq, me, darg, dres, 
 	             rpcc::to(1000));
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     }
     else {
+      VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
       continue;
     }  
-    //VERIFY(pthread_mutex_lock(&pxs_mutex)==0);
     if (ret != paxos_protocol::OK) {
       if (ret == rpc_const::atmostonce_failure || 
 	  ret == rpc_const::oldsrv_failure) {
-        tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d) delete handler\n", 
-	       me.c_str(), m.c_str(), ret);
+        //tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d) delete handler\n", 
+	//       me.c_str(), m.c_str(), ret);
         //mgr.delete_handle(m);
       } else {
-        tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d)\n", 
-	       me.c_str(), m.c_str(), ret);
-        //res = false;
+        //tprintf("!!!proposer decide(): problem me(%s)->(%s) (%d)\n", 
+	//       me.c_str(), m.c_str(), ret);
       }
     }
     else {
@@ -407,15 +408,14 @@ acceptor::acceptreq(std::string src, paxos_protocol::acceptarg a, bool &r)
     // reply accept_ok(n)
     // shall we need to update n_h(prepare) here?
     if (a.n > n_h) {
-      tprintf("!!!acceptor acceptreq(): src(%s)'s n(%u;%s) is bigger than our n_h(%u;%s) (we don't update n_h here..)!\n",
-              src.c_str(), a.n.n, a.n.m.c_str(), n_h.n, n_h.m.c_str());
-      //n_h = a.n;
+      tprintf("acceptor(%s) from(%s) acceptreq(): a.n(%u;%s) > n_h(%u;%s)!\n",
+              me.c_str(), src.c_str(), a.n.n, a.n.m.c_str(), n_h.n, n_h.m.c_str());
     }
     n_a = a.n;
     v_a = a.v;
     // log the accept proposal
-    tprintf("acceptor(%s) acceptreq(): src_from(%s) logaccept n=(%u,%s) v=(%s)!\n",
-            me.c_str(), src.c_str(), a.n.n, a.n.m.c_str(), a.v.c_str());
+    // tprintf("acceptor(%s) acceptreq(): src_from(%s) logaccept n=(%u,%s) v=(%s)!\n",
+    //        me.c_str(), src.c_str(), a.n.n, a.n.m.c_str(), a.v.c_str());
     l->logaccept(n_a, v_a);
     r = true;
   }

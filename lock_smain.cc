@@ -30,6 +30,9 @@ main(int argc, char *argv[])
     count = atoi(count_env);
   }
 
+  /* Annoying count unused warning while compiling.. */
+  if (count);
+
   //jsl_set_debug(2);
   // Comment out the next line to switch between the ordinary lock
   // server and the RSM.  In part1 of paxos, we disable the lock server and
